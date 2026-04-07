@@ -1505,7 +1505,7 @@ func (m *Manager) SendMediaMessage(instanceID, to, mediaUrl, caption, mediaType 
 			FileLength:    proto.Uint64(uint64(len(data))),
 		}
 	case "audio":
-		if mimeType == "application/ogg" {
+		if mimeType == "application/ogg" || mimeType == "application/octet-stream" {
 			mimeType = "audio/ogg; codecs=opus"
 		}
 		msg.AudioMessage = &waE2E.AudioMessage{
@@ -1516,7 +1516,7 @@ func (m *Manager) SendMediaMessage(instanceID, to, mediaUrl, caption, mediaType 
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
 			FileLength:    proto.Uint64(uint64(len(data))),
-			PTT:           proto.Bool(true),
+			PTT:           proto.Bool(false),
 		}
 	case "document":
 		msg.DocumentMessage = &waE2E.DocumentMessage{
