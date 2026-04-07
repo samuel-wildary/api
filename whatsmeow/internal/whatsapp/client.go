@@ -1505,6 +1505,9 @@ func (m *Manager) SendMediaMessage(instanceID, to, mediaUrl, caption, mediaType 
 			FileLength:    proto.Uint64(uint64(len(data))),
 		}
 	case "audio":
+		if mimeType == "application/ogg" {
+			mimeType = "audio/ogg; codecs=opus"
+		}
 		msg.AudioMessage = &waE2E.AudioMessage{
 			URL:           proto.String(uploaded.URL),
 			DirectPath:    proto.String(uploaded.DirectPath),
