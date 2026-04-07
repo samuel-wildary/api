@@ -1516,7 +1516,7 @@ func (m *Manager) SendMediaMessage(instanceID, to, mediaUrl, caption, mediaType 
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
 			FileLength:    proto.Uint64(uint64(len(data))),
-			PTT:           proto.Bool(false),
+			PTT:           proto.Bool(true),
 		}
 	case "document":
 		msg.DocumentMessage = &waE2E.DocumentMessage{
