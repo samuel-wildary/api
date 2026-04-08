@@ -110,6 +110,14 @@ type MessageData struct {
 	Mimetype    string `json:"mimetype,omitempty"`
 	Caption     string `json:"caption,omitempty"`
 	FileName    string `json:"fileName,omitempty"`
+	// CTWA (Click to WhatsApp) ad tracking fields
+	CtwaClid                   string `json:"ctwaClid,omitempty"`
+	EntryPointConversionSource string `json:"entryPointConversionSource,omitempty"`
+	EntryPointConversionApp    string `json:"entryPointConversionApp,omitempty"`
+	AdSourceURL                string `json:"adSourceURL,omitempty"`
+	AdSourceApp                string `json:"adSourceApp,omitempty"`
+	AdTitle                    string `json:"adTitle,omitempty"`
+	AdBody                     string `json:"adBody,omitempty"`
 }
 
 // ResolvedContactInfo represents resolved contact information
@@ -494,6 +502,65 @@ func (m *Manager) setupEventHandlers(inst *Instance) {
 // Larger files will not be downloaded automatically to save memory
 const maxAutoDownloadSize uint64 = 5 * 1024 * 1024 // 5MB
 
+// extractContextInfo attempts to extract ContextInfo from any message type
+func extractContextInfo(msg *waE2E.Message) *waE2E.ContextInfo {
+	if msg == nil {
+		return nil
+	}
+	if m := msg.GetExtendedTextMessage(); m != nil {
+		return m.GetContextInfo()
+	}
+	if m := msg.GetImageMessage(); m != nil {
+		return m.GetContextInfo()
+	}
+	if m := msg.GetVideoMessage(); m != nil {
+		return m.GetContextInfo()
+	}
+	if m := msg.GetAudioMessage(); m != nil {
+		return m.GetContextInfo()
+	}
+	if m := msg.GetDocumentMessage(); m != nil {
+		return m.GetContextInfo()
+	}
+	if m := msg.GetStickerMessage(); m != nil {
+		return m.GetContextInfo()
+	}
+	if m := msg.GetContactMessage(); m != nil {
+		return m.GetContextInfo()
+	}
+	if m := msg.GetLocationMessage(); m != nil {
+		return m.GetContextInfo()
+	}
+	return nil
+}
+
+// populateCTWAData extracts CTWA ad data from ContextInfo and populates MessageData fields
+func populateCTWAData(msgData *MessageData, msg *waE2E.Message, instanceID string, doLog bool) {
+	ctxInfo := extractContextInfo(msg)
+	if ctxInfo == nil {
+		return
+	}
+
+	if adReply := ctxInfo.GetExternalAdReply(); adReply != nil {
+		msgData.CtwaClid = adReply.GetCtwaClid()
+		msgData.AdSourceURL = adReply.GetSourceURL()
+		msgData.AdSourceApp = adReply.GetSourceApp()
+		msgData.AdTitle = adReply.GetTitle()
+		msgData.AdBody = adReply.GetBody()
+		if doLog && msgData.CtwaClid != "" {
+			log.Info().
+				Str("instanceId", instanceID).
+				Str("ctwaClid", msgData.CtwaClid).
+				Str("adTitle", msgData.AdTitle).
+				Str("sourceApp", msgData.AdSourceApp).
+				Str("sourceURL", msgData.AdSourceURL).
+				Msg("📢 CTWA ad data detected in message")
+		}
+	}
+	msgData.EntryPointConversionSource = ctxInfo.GetEntryPointConversionSource()
+	msgData.EntryPointConversionApp = ctxInfo.GetEntryPointConversionApp()
+}
+
 // formatMessage formats a WhatsApp message event
 func (m *Manager) formatMessage(instanceID string, msg *events.Message) MessageData {
 	var body string
@@ -646,7 +713,7 @@ func (m *Manager) formatMessage(instanceID string, msg *events.Message) MessageD
 		}
 	}
 
-	return MessageData{
+	msgData := MessageData{
 		ID:            msg.Info.ID,
 		From:          senderJID,
 		To:            msg.Info.Chat.String(),
@@ -662,6 +729,11 @@ func (m *Manager) formatMessage(instanceID string, msg *events.Message) MessageD
 		Caption:       caption,
 		FileName:      fileName,
 	}
+
+	// Extract CTWA (Click to WhatsApp) ad tracking data
+	populateCTWAData(&msgData, msg.Message, instanceID, true)
+
+	return msgData
 }
 
 // formatMessageLite formats a WhatsApp message WITHOUT downloading media
@@ -703,7 +775,7 @@ func (m *Manager) formatMessageLite(instanceID string, msg *events.Message) Mess
 		mimetype = stickerMsg.GetMimetype()
 	}
 
-	return MessageData{
+	msgData := MessageData{
 		ID:        msg.Info.ID,
 		From:      msg.Info.Sender.String(),
 		To:        msg.Info.Chat.String(),
@@ -718,6 +790,11 @@ func (m *Manager) formatMessageLite(instanceID string, msg *events.Message) Mess
 		FileName:  fileName,
 		// MediaBase64 is intentionally empty - no download for history
 	}
+
+	// Extract CTWA ad tracking data for history messages too
+	populateCTWAData(&msgData, msg.Message, instanceID, false)
+
+	return msgData
 }
 
 // GetContactInfo attempts to get contact information and resolve LID if applicable
